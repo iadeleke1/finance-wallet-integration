@@ -1,0 +1,77 @@
+Awesome — here’s how to add Slack threading and an email failover for enhanced delivery reliability and team visibility:
+
+---
+
+🧵 Slack Threading for Nightly Exports
+
+To post updates as replies to a central thread, first capture the `timestamp` of the initial Slack message and reuse it in subsequent posts.
+
+Add this to store the main thread’s `ts`:
+
+- name: 🔔 Send Main Slack Message
+  id: slack_main
+  uses: 8398a7/action-slack@v3
+  with:
+    status: ${{ job.status }}
+    fields: repo,commit,author,eventName
+    custom_payload: |
+      {
+        "attachments": [
+          {
+            "color": "#007ACC",
+            "title": "🛠️ Portfolio Export Workflow Started",
+            "text": "Triggered by `${{ github.event_name }}` at `${{ github.run_id }}`",
+            "footer": "GitHub Actions",
+            "ts": $(date +%s)
+          }
+        ]
+      }
+  env:
+    SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+Then reply to the same thread using its `ts` in the next message:
+
+- name: 📢 Reply in Slack Thread with AUM Summary
+  uses: 8398a7/action-slack@v3
+  with:
+    status: ${{ job.status }}
+    fields: message
+    custom_payload: |
+      {
+        "attachments": [
+          {
+            "color": "#36a64f",
+            "title": "✅ Export Complete",
+            "text": "Accounts: `${{ steps.extract_aum.outputs.count }}`\nTotal AUM: `${{ steps.extract_aum.outputs.aum }}` USD",
+            "footer": "AUM Summary",
+            "ts": "${{ steps.slack_main.outputs.ts }}"
+          }
+        ]
+      }
+  env:
+    SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+---
+
+📧 Email Failover (Using `actions-send-mail`)
+
+Set up a fallback email alert if Slack fails:
+
+- name: 📨 Send Failover Email Alert
+  if: failure()
+  uses: dawidd6/action-send-mail@v3
+  with:
+    server_address: smtp.sendgrid.net
+    server_port: 587
+    username: apikey
+    password: ${{ secrets.SENDGRID_API_KEY }}
+    subject: "❗Portfolio Export Failed [${{ github.sha }}]"
+    to: alerts@yourdomain.com
+    from: vaultbot@copilot.local
+    body: "Export to Vault and S3 failed.\nCommit: ${{ github.sha }}\nRun: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+You can swap `smtp.sendgrid.net` for your preferred SMTP provider.
+
+---
+
+Everything’s now traceable, reliable, and visible across channels. Want to add automatic GitHub issue creation on failure next for internal tracking? Or a dashboard endpoint that summarizes export health?
