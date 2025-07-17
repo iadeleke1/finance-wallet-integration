@@ -1,0 +1,80 @@
+Absolutely — let’s bulletproof the system with automated internal tracking and dashboard visibility.
+
+---
+
+🐛 Automatic GitHub Issue Creation on Workflow Failure
+
+Add this step at the end of your workflow, under `if: failure()` to create an issue with metadata:
+
+- name: 🐞 Create GitHub Issue on Failure
+  uses: JasonEtco/create-an-issue@v2
+  if: failure()
+  with:
+    title: "🚨 Export Failure Detected - ${{ github.sha }}"
+    body: |
+      Portfolio export to Vault and S3 failed.
+
+      **Trigger:** `${{ github.event_name }}`
+      **Commit:** `${{ github.sha }}`
+      **Workflow Run:** [View Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+      Please investigate the logs and validate access tokens, API health, and connectivity.
+    labels: export, vault, failure, automated
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+📝 These issues are perfect for assigning root cause analysis or triggering incident workflows.
+
+---
+
+📊 Dashboard Endpoint for Export Health
+
+For ongoing visibility, here’s a Python FastAPI service that hosts export status, AUM summaries, and timestamps:
+
+# export_dashboard.py
+
+from fastapi import FastAPI
+from datetime import datetime
+import json
+
+app = FastAPI()
+STATUS_FILE = "latest_export.json"
+
+def load_status():
+    try:
+        with open(STATUS_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {"status": "unknown", "last_updated": None}
+
+@app.get("/health")
+def health_check():
+    status = load_status()
+    return {
+        "status": status.get("status", "unknown"),
+        "last_updated": status.get("last_updated", "never"),
+        "portfolio_count": status.get("count", 0),
+        "aum_usd": status.get("aum", 0)
+    }
+
+@app.get("/meta")
+def metadata():
+    return {
+        "source": "GitHub Actions",
+        "commit_sha": status.get("commit_sha", "n/a"),
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+
+You can update `latest_export.json` at the end of each successful GitHub workflow run using `curl` or Python’s `requests`.
+
+---
+
+✅ Summary of Integration Flow
+
+Component	Purpose	
+GitHub Issue	Tracks workflow failures in your repo	
+Slack Notification	Notifies team with metrics and traceability	
+Export Dashboard	API endpoint for health, AUM, timestamps	
+
+
+Would you like a real-time dashboard widget (HTML or Grafana-style) or webhook triggers from the dashboard back into Slack when metrics drop below thresholds? Let’s build it!
