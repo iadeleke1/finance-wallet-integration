@@ -1,0 +1,87 @@
+Let’s build a robust GitHub Actions workflow that automatically:
+
+• Runs the portfolio tagging CLI script
+• Exports results to both AWS S3 and Copilot Vault
+• Tags each Vault upload with the commit SHA for traceability
+• Optionally sets retention rules as part of initialization
+
+
+---
+
+🚀 `.github/workflows/export_portfolio.yml`
+
+name: Export Tagged Portfolio
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  EXPORT_TO_S3: true
+  EXPORT_TO_VAULT: true
+  S3_BUCKET: my-finance-exports
+  VAULT_URL: https://vault.copilot.microsoft.com/api/v1/portfolio/upload
+
+jobs:
+  tag-and-export:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: ⬇️ Checkout Repo
+      uses: actions/checkout@v3
+
+    - name: 🛠️ Set Up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 📦 Install Dependencies
+      run: pip install -r requirements.txt
+
+    - name: 🔐 Set Environment Secrets
+      env:
+        PLAID_PROD_CLIENT_ID: ${{ secrets.PLAID_PROD_CLIENT_ID }}
+        PLAID_PROD_SECRET: ${{ secrets.PLAID_PROD_SECRET }}
+        PLAID_PROD_ACCESS_TOKEN: ${{ secrets.PLAID_USER_ACCESS_TOKEN }}
+        VAULT_API_KEY: ${{ secrets.VAULT_API_KEY }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      run: |
+        echo "Environment secrets loaded for execution."
+
+    - name: 🧪 Run Portfolio Tagging CLI
+      run: |
+        python prod_portfolio_checker_cli.py --env production --json-output > tagged.json
+
+    - name: 🚀 Auto Export: AWS S3
+      run: |
+        aws s3 cp tagged.json s3://${{ env.S3_BUCKET }}/portfolio_export/prod_${{ github.sha }}.json
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    - name: 🔐 Auto Export: Copilot Vault
+      run: |
+        curl -X POST ${{ env.VAULT_URL }} \
+          -H "Authorization: Bearer ${{ secrets.VAULT_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d @<(jq --arg sha "${{ github.sha }}" '. | {version: $sha, timestamp: now | todate, source: "GitHub::Actions", portfolio: .}' tagged.json)
+
+    - name: ✅ Done
+      run: echo "Portfolio tagged and exported to S3 and Vault ✅"
+
+---
+
+✨ Tips for Next-Level Integration
+
+Feature	Benefit	
+workflow_dispatch	Manual re-runs when debugging or testing	
+jq tagging	Inline transformation to inject commit SHA	
+S3 path prefix	Easily map exports by branch/env/sha	
+Vault version	Enables schema and traceability governance	
+
+
+---
+
+Would you like to add a schedule trigger (`cron`) for nightly exports, or embed a summary Slack notification once the workflow completes? I can wire that up next.
