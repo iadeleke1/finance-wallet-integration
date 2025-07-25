@@ -31,6 +31,9 @@ jobs:
     - name: ⬇️ Checkout Repo
       uses: actions/checkout@v3
 
+    - name: Deploy to Render
+      uses: JorgeLNJunior/render-deploy@v1.4.5
+
     - name: 🛠️ Set Up Python
       uses: actions/setup-python@v4
       with:
