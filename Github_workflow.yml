@@ -71,6 +71,9 @@ jobs:
     - name: ✅ Done
       run: echo "Portfolio tagged and exported to S3 and Vault ✅"
 
+      - name: Deploy to Render
+  uses: JorgeLNJunior/render-deploy@v1.4.5
+
 ---
 
 ✨ Tips for Next-Level Integration
